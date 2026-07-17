@@ -1,0 +1,29 @@
+name: 新着チェック
+
+on:
+  schedule:
+    # 毎日 朝6:00 JST (UTC 21:00 前日) に自動実行
+    - cron: "0 21 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: 新着確認スクリプト実行
+        run: node scripts/check.js
+
+      - name: 結果をコミット
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "🔄 新着チェック自動更新"
+          file_pattern: data/manga.json
