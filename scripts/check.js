@@ -1,5 +1,6 @@
 // 目でページを見て数字を拾うのと同じことを機械的にやるだけのスクリプト。
 // AIの推測は一切使わない：HTMLをテキストとして取得し、正規表現で話数っぽい数字を全部拾って最大値を採用する。
+// ※現在デバッグモード：レスポンスのステータス・ヘッダー・本文冒頭をログに出す
 
 const fs = require("fs");
 const path = require("path");
@@ -38,9 +39,14 @@ async function checkOne(item) {
         Referer: new URL(item.url).origin + "/",
       },
     });
+    const bodyPreview = (await res.text()).slice(0, 300);
+    console.log(`--- DEBUG [${item.title}] ---`);
+    console.log(`status: ${res.status}`);
+    console.log(`headers: ${JSON.stringify([...res.headers.entries()])}`);
+    console.log(`body preview: ${bodyPreview}`);
+    console.log(`--- END DEBUG ---`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const html = await res.text();
-    const numbers = extractChapterNumbers(html);
+    const numbers = extractChapterNumbers(bodyPreview);
     if (numbers.length === 0) {
       return { ...item, lastCheckError: "話数を検出できず", lastCheckedAt: Date.now() };
     }
