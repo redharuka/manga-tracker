@@ -29,7 +29,14 @@ async function checkOne(item) {
   }
   try {
     const res = await fetch(item.url, {
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; MangaTrackerBot/1.0)" },
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36",
+        Accept:
+          "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        "Accept-Language": "ja,en-US;q=0.9,en;q=0.8",
+        Referer: new URL(item.url).origin + "/",
+      },
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const html = await res.text();
