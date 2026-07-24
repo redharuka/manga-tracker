@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>漫画蔵</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=JetBrains+Mono:wght@500&display=swap');
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: #121214;
+    color: #eae6da;
+    font-family: 'Zen Kaku Gothic New', sans-serif;
+    padding: 20px 16px 60px;
+  }
+  ::selection { background: #c23b2255; }
+  input, textarea, select { font-family: 'Zen Kaku Gothic New', sans-serif; }
+
+  header { display: flex; align-items: center; gap: 14px; margin-bottom: 20px; position: relative; }
+  .hanko {
+    width: 46px; height: 46px; min-width: 46px; border-radius: 8px; background: #c23b22; color: #f2ede1;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Shippori Mincho', serif; font-size: 24px; font-weight: 700;
+    box-shadow: 0 2px 8px rgba(194,59,34,0.35);
+  }
+  h1 { font-family: 'Shippori Mincho', serif; font-size: 24px; font-weight: 700; margin: 0; line-height: 1.1; }
+  .sub { font-size: 12px; color: #8a8a8d; margin-top: 2px; }
+  .save-indicator { position: absolute; right: 0; top: 4px; font-size: 11px; color: #6f6f75; font-family: 'JetBrains Mono', monospace; }
+
+  .toolbar { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; align-items: center; }
+  #search {
+    flex: 1 1 160px; background: #1c1c1f; border: 1px solid #2c2c30; border-radius: 8px;
+    padding: 9px 12px; color: #eae6da; font-size: 14px;
+  }
+  #search:focus { outline: 2px solid #c23b22aa; outline-offset: 1px; }
+  .add-btn {
+    background: #c23b22; color: #f2ede1; border: none; border-radius: 8px;
+    padding: 9px 16px; font-size: 14px; font-weight: 700; cursor: pointer;
+  }
+  .add-btn:active { transform: scale(0.97); }
+
+  .tabs { display: flex; gap: 6px; margin-bottom: 14px; }
+  .tab-btn {
+    background: transparent; border: 1px solid #2c2c30; border-radius: 20px;
+    padding: 7px 14px; color: #8a8a8d; font-size: 12.5px; cursor: pointer;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .tab-btn .count { font-family: 'JetBrains Mono', monospace; font-size: 11px; opacity: 0.8; }
+  .tab-btn.active { border-color: #c23b22; color: #f2ede1; background: #c23b2222; }
+
+  .status-banner {
+    background: #c23b2218; border: 1px solid #c23b2255; color: #e07a5f; border-radius: 8px;
+    padding: 8px 14px; font-size: 13px; margin-bottom: 14px;
+  }
+  .error-banner {
+    background: #7a201530; border: 1px solid #7a2015aa; color: #ff9d8a; border-radius: 8px;
+    padding: 10px 14px; font-size: 13px; margin-bottom: 14px; line-height: 1.5;
+  }
+
+  .empty { text-align: center; padding: 60px 20px; color: #6f6f75; border: 1px dashed #2c2c30; border-radius: 12px; }
+  .empty .sub2 { font-size: 13px; color: #8a8a8d; margin-top: 6px; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+
+  .card {
+    position: relative; border: 1px solid #2c2c30; border-radius: 10px;
+    padding: 14px 16px 12px; overflow: hidden; transition: transform .15s ease, border-color .15s ease, opacity .2s ease;
+  }
+  .card:hover { transform: translateY(-2px); border-color: #43434a; }
+  .card.unread { background: #1c1c1f; border-color: #c23b2277; }
+  .card.read { background: #17171a; opacity: 0.6; }
+
+  .new-badge {
+    position: absolute; top: 10px; left: -28px; background: #c23b22; color: #f2ede1;
+    font-size: 10px; font-weight: 700; padding: 2px 30px; transform: rotate(-45deg); letter-spacing: 1px;
+  }
+  .freq-tag {
+    display: inline-block; font-size: 10px; font-family: 'JetBrains Mono', monospace;
+    padding: 2px 7px; border-radius: 10px; margin-bottom: 6px;
+  }
+  .freq-tag.weekly { background: #2c3f5b33; color: #7fa8d9; }
+  .freq-tag.monthly { background: #5b3f2c33; color: #d9a87f; }
+
+  .card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .star-btn { background: none; border: none; font-size: 18px; padding: 2px; line-height: 1; cursor: pointer; }
+  .star-btn:hover { opacity: 1; }
+  .x-btn {
+    background: none; border: none; font-size: 18px; color: #6f6f75; border-radius: 6px;
+    width: 26px; height: 26px; line-height: 1; cursor: pointer;
+  }
+  .x-btn:hover { background: #c23b2222; }
+
+  .title {
+    font-family: 'Shippori Mincho', serif; font-size: 17px; font-weight: 700;
+    margin-bottom: 8px; cursor: pointer; word-break: break-word;
+  }
+  .note { font-size: 12.5px; color: #8a8a8d; margin-bottom: 8px; line-height: 1.5; }
+
+  .card-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; margin-bottom: 10px; }
+  .updated { font-size: 11px; color: #55555a; font-family: 'JetBrains Mono', monospace; }
+  .open-link { font-size: 12px; color: #c23b22; text-decoration: none; }
+
+  .read-btn {
+    width: 100%; background: #2c5b3d; border: none; color: #eaf5ee; border-radius: 7px;
+    padding: 8px 0; font-size: 13px; font-weight: 700; cursor: pointer;
+  }
+  .read-btn:hover { background: #35704b; }
+  .undo-btn {
+    width: 100%; background: none; border: 1px solid #2c2c30; color: #6f6f75; border-radius: 7px;
+    padding: 8px 0; font-size: 12.5px; cursor: pointer;
+  }
+  .card button:active { transform: scale(0.97); }
+
+  .ribbon {
+    position: absolute; top: 0; right: 18px; width: 12px; height: 22px; background: #c23b22;
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 75%, 0 100%);
+  }
+
+  .overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: none;
+    align-items: center; justify-content: center; padding: 16px; z-index: 50;
+  }
+  .overlay.show { display: flex; }
+  .modal-box { background: #1c1c1f; border: 1px solid #2c2c30; border-radius: 12px; padding: 20px; width: 100%; max-width: 380px; }
+  .modal-title { font-family: 'Shippori Mincho', serif; font-size: 18px; font-weight: 700; margin-bottom: 14px; }
+  label.field-label { font-size: 12px; color: #8a8a8d; display: block; margin-bottom: 5px; margin-top: 12px; }
+  .field-input {
+    width: 100%; background: #121214; border: 1px solid #2c2c30; border-radius: 7px;
+    padding: 9px 10px; color: #eae6da; font-size: 14px; font-family: 'Zen Kaku Gothic New', sans-serif;
+  }
+  .field-input:focus { outline: 2px solid #c23b22aa; outline-offset: 1px; }
+  textarea.field-input { min-height: 64px; resize: vertical; }
+
+  .freq-select { display: flex; gap: 8px; margin-top: 6px; }
+  .freq-option {
+    flex: 1; text-align: center; padding: 9px 0; border: 1px solid #2c2c30; border-radius: 7px;
+    font-size: 13px; color: #8a8a8d; cursor: pointer; user-select: none;
+  }
+  .freq-option.selected { border-color: #c23b22; color: #f2ede1; background: #c23b2222; }
+
+  .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+  .cancel-btn { background: none; border: 1px solid #2c2c30; color: #8a8a8d; border-radius: 7px; padding: 8px 14px; font-size: 13px; cursor: pointer; }
+  .save-btn { background: #c23b22; border: none; color: #f2ede1; border-radius: 7px; padding: 8px 16px; font-size: 13px; font-weight: 700; cursor: pointer; }
+  .save-btn:disabled { opacity: 0.4; cursor: default; }
+  .delete-btn { background: #7a2015; border: none; color: #f2ede1; border-radius: 7px; padding: 8px 16px; font-size: 13px; font-weight: 700; cursor: pointer; }
+  .confirm-box { background: #1c1c1f; border: 1px solid #2c2c30; border-radius: 12px; padding: 20px; width: 100%; max-width: 300px; }
+
+  footer.note-footer { text-align: center; font-size: 11px; color: #4a4a4d; margin-top: 30px; }
+</style>
+</head>
+<body>
+
+  <header>
+    <div class="hanko">蔵</div>
+    <div>
+      <h1>漫画蔵</h1>
+      <div class="sub">読んだら下へ。上に残ってるのが「まだ読んでない」印</div>
+    </div>
+    <div class="save-indicator" id="saveIndicator"></div>
+  </header>
+
+  <div class="toolbar">
+    <input id="search" placeholder="タイトル・メモで検索" />
+    <button class="add-btn" id="openAddBtn">＋ 追加</button>
+  </div>
+
+  <div class="tabs" id="tabs"></div>
+
+  <div id="loadError"></div>
+  <div id="statusBanner"></div>
+  <div id="emptyState"></div>
+  <div class="grid" id="grid"></div>
+
+  <footer class="note-footer">データはこの端末のこのブラウザ内に保存されます</footer>
+
+  <!-- 追加/編集モーダル -->
+  <div class="overlay" id="modalOverlay">
+    <div class="modal-box" onclick="event.stopPropagation()">
+      <div class="modal-title" id="modalTitle">漫画を追加</div>
+
+      <label class="field-label">タイトル</label>
+      <input class="field-input" id="fieldTitle" placeholder="例：〇〇の魔王" />
+
+      <label class="field-label">連載頻度</label>
+      <div class="freq-select" id="freqSelect">
+        <div class="freq-option" data-freq="weekly">週刊</div>
+        <div class="freq-option" data-freq="monthly">月刊</div>
+      </div>
+
+      <label class="field-label">URL（任意）</label>
+      <input class="field-input" id="fieldUrl" placeholder="https://..." />
+
+      <label class="field-label">メモ（任意）</label>
+      <textarea class="field-input" id="fieldNote" placeholder="感想・次に読む理由など"></textarea>
+
+      <div class="modal-actions">
+        <button class="cancel-btn" id="modalCancelBtn">やめる</button>
+        <button class="save-btn" id="modalSaveBtn">積む</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 削除確認モーダル -->
+  <div class="overlay" id="deleteOverlay">
+    <div class="confirm-box" onclick="event.stopPropagation()">
+      <div style="margin-bottom:14px;">削除しますか？元に戻せません。</div>
+      <div class="modal-actions">
+        <button class="cancel-btn" id="deleteCancelBtn">やめる</button>
+        <button class="delete-btn" id="deleteConfirmBtn">削除する</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const STORAGE_KEY = "manga-bookmarks-v3-local";
+
+  let items = [];
+  let modalMode = null; // 'add' | 'edit'
+  let modalEditId = null;
+  let modalFreq = "weekly";
+  let deleteTargetId = null;
+  let query = "";
+  let activeTab = "all"; // 'all' | 'weekly' | 'monthly'
+
+  const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+
+  function timeAgo(ts) {
+    if (!ts) return "";
+    const diff = Date.now() - ts;
+    const m = Math.floor(diff / 60000);
+    if (m < 1) return "たった今";
+    if (m < 60) return `${m}分前`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}時間前`;
+    const d = Math.floor(h / 24);
+    if (d < 30) return `${d}日前`;
+    return `${Math.floor(d / 30)}ヶ月前`;
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement("div");
+    div.textContent = str ?? "";
+    return div.innerHTML;
+  }
+
+  let loadFailed = false;
+
+  function loadItems() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      items = raw ? JSON.parse(raw) : [];
+      items = items.map((it) => ({ frequency: "weekly", ...it }));
+      loadFailed = false;
+    } catch (e) {
+      loadFailed = true;
+      items = [];
+      document.getElementById("loadError").innerHTML = `
+        <div class="error-banner">
+          ⚠ 保存データの読み込みに失敗しました。誤って上書きしないよう、保存を一時停止しています。<br>
+          このブラウザのプライベートモードで開いていないか、ストレージ容量制限に達していないか確認してください。
+        </div>`;
+    }
+    render();
+  }
+
+  function persist() {
+    if (loadFailed) return;
+    const indicator = document.getElementById("saveIndicator");
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+      indicator.textContent = "保存済み";
+    } catch (e) {
+      indicator.textContent = "保存失敗";
+      document.getElementById("loadError").innerHTML = `
+        <div class="error-banner">⚠ 保存に失敗しました: ${escapeHtml(e.message)}</div>`;
+    }
+    setTimeout(() => { indicator.textContent = ""; }, 1200);
+  }
+
+  function updateItem(id, patch) {
+    items = items.map((it) => (it.id === id ? { ...it, ...patch } : it));
+    persist();
+    render();
+  }
+
+  function markRead(id) {
+    updateItem(id, { lastReadAt: Date.now() });
+  }
+
+  function undoRead(id) {
+    updateItem(id, { lastReadAt: null });
+  }
+
+  function toggleFavorite(id) {
+    const it = items.find((x) => x.id === id);
+    updateItem(id, { favorite: !it.favorite });
+  }
+
+  function setTab(tab) {
+    activeTab = tab;
+    render();
+  }
+
+  function setModalFreq(freq) {
+    modalFreq = freq;
+    document.querySelectorAll(".freq-option").forEach((el) => {
+      el.classList.toggle("selected", el.dataset.freq === freq);
+    });
+  }
+
+  function openAdd() {
+    modalMode = "add";
+    modalEditId = null;
+    document.getElementById("modalTitle").textContent = "漫画を追加";
+    document.getElementById("fieldTitle").value = "";
+    document.getElementById("fieldUrl").value = "";
+    document.getElementById("fieldNote").value = "";
+    document.getElementById("modalSaveBtn").textContent = "積む";
+    setModalFreq("weekly");
+    document.getElementById("modalOverlay").classList.add("show");
+    document.getElementById("fieldTitle").focus();
+    validateModal();
+  }
+
+  function openEdit(id) {
+    const it = items.find((x) => x.id === id);
+    if (!it) return;
+    modalMode = "edit";
+    modalEditId = id;
+    document.getElementById("modalTitle").textContent = "編集";
+    document.getElementById("fieldTitle").value = it.title;
+    document.getElementById("fieldUrl").value = it.url || "";
+    document.getElementById("fieldNote").value = it.note || "";
+    document.getElementById("modalSaveBtn").textContent = "保存";
+    setModalFreq(it.frequency || "weekly");
+    document.getElementById("modalOverlay").classList.add("show");
+    validateModal();
+  }
+
+  function closeModal() {
+    document.getElementById("modalOverlay").classList.remove("show");
+  }
+
+  function validateModal() {
+    const title = document.getElementById("fieldTitle").value.trim();
+    document.getElementById("modalSaveBtn").disabled = title.length === 0;
+  }
+
+  function saveModal() {
+    const title = document.getElementById("fieldTitle").value.trim();
+    const url = document.getElementById("fieldUrl").value.trim();
+    const note = document.getElementById("fieldNote").value.trim();
+    if (!title) return;
+    const now = Date.now();
+    if (modalMode === "add") {
+      items = [{ id: uid(), title, url, note, frequency: modalFreq, favorite: false, addedAt: now, lastReadAt: null }, ...items];
+    } else {
+      items = items.map((it) => (it.id === modalEditId ? { ...it, title, url, note, frequency: modalFreq } : it));
+    }
+    persist();
+    closeModal();
+    render();
+  }
+
+  function askDelete(id) {
+    deleteTargetId = id;
+    document.getElementById("deleteOverlay").classList.add("show");
+  }
+
+  function closeDelete() {
+    document.getElementById("deleteOverlay").classList.remove("show");
+    deleteTargetId = null;
+  }
+
+  function confirmDelete() {
+    items = items.filter((it) => it.id !== deleteTargetId);
+    persist();
+    closeDelete();
+    render();
+  }
+
+  function render() {
+    const weeklyCount = items.filter((it) => it.frequency !== "monthly").length;
+    const monthlyCount = items.filter((it) => it.frequency === "monthly").length;
+    const tabs = document.getElementById("tabs");
+    tabs.innerHTML = `
+      <button class="tab-btn ${activeTab === "all" ? "active" : ""}" onclick="setTab('all')">すべて <span class="count">${items.length}</span></button>
+      <button class="tab-btn ${activeTab === "weekly" ? "active" : ""}" onclick="setTab('weekly')">週刊 <span class="count">${weeklyCount}</span></button>
+      <button class="tab-btn ${activeTab === "monthly" ? "active" : ""}" onclick="setTab('monthly')">月刊 <span class="count">${monthlyCount}</span></button>
+    `;
+
+    const tabFiltered = items.filter((it) => {
+      if (activeTab === "all") return true;
+      if (activeTab === "weekly") return it.frequency !== "monthly";
+      return it.frequency === "monthly";
+    });
+
+    const filtered = tabFiltered
+      .filter((it) => {
+        const q = query.toLowerCase();
+        return it.title.toLowerCase().includes(q) || (it.note || "").toLowerCase().includes(q);
+      })
+      .sort((a, b) => {
+        if (a.favorite !== b.favorite) return (b.favorite ? 1 : 0) - (a.favorite ? 1 : 0);
+        const av = a.lastReadAt ?? -1;
+        const bv = b.lastReadAt ?? -1;
+        return av - bv;
+      });
+
+    const unreadCount = tabFiltered.filter((it) => it.lastReadAt == null).length;
+
+    const banner = document.getElementById("statusBanner");
+    banner.innerHTML = tabFiltered.length > 0
+      ? `<div class="status-banner">📚 未読 ${unreadCount} / 全${tabFiltered.length}件</div>`
+      : "";
+
+    const empty = document.getElementById("emptyState");
+    if (filtered.length === 0) {
+      empty.innerHTML = `
+        <div class="empty">
+          <div>${items.length === 0 ? "まだ何も積まれていません" : "見つかりませんでした"}</div>
+          ${items.length === 0 ? '<div class="sub2">「＋ 追加」から読んでいる漫画のページを登録</div>' : ""}
+        </div>`;
+    } else {
+      empty.innerHTML = "";
+    }
+
+    const grid = document.getElementById("grid");
+    grid.innerHTML = filtered.map((it) => {
+      const isUnread = it.lastReadAt == null;
+      const footerText = it.lastReadAt ? `読了: ${timeAgo(it.lastReadAt)}` : "未読のまま";
+      const isMonthly = it.frequency === "monthly";
+      return `
+        <div class="card ${isUnread ? "unread" : "read"}">
+          ${isUnread ? '<div class="new-badge">未読</div>' : ""}
+          <div class="card-top">
+            <button class="star-btn" onclick="toggleFavorite('${it.id}')" style="opacity:${it.favorite ? 1 : 0.35}; color:${it.favorite ? "#c23b22" : "#eae6da"}" title="お気に入り">★</button>
+            <button class="x-btn" onclick="askDelete('${it.id}')" title="削除">×</button>
+          </div>
+          <span class="freq-tag ${isMonthly ? "monthly" : "weekly"}">${isMonthly ? "月刊" : "週刊"}</span>
+          <div class="title" onclick="openEdit('${it.id}')" title="タップして編集">${escapeHtml(it.title)}</div>
+          ${it.note ? `<div class="note">${escapeHtml(it.note)}</div>` : ""}
+          <div class="card-footer">
+            <span class="updated">${footerText}</span>
+            ${it.url ? `<a class="open-link" href="${escapeHtml(it.url)}" target="_blank" rel="noreferrer">開く ↗</a>` : ""}
+          </div>
+          ${isUnread
+            ? `<button class="read-btn" onclick="markRead('${it.id}')">✓ 読んだ（下に移動）</button>`
+            : `<button class="undo-btn" onclick="undoRead('${it.id}')">↺ 未読に戻す</button>`
+          }
+          <div class="ribbon"></div>
+        </div>
+      `;
+    }).join("");
+  }
+
+  document.getElementById("openAddBtn").addEventListener("click", openAdd);
+  document.getElementById("modalCancelBtn").addEventListener("click", closeModal);
+  document.getElementById("modalSaveBtn").addEventListener("click", saveModal);
+  document.getElementById("modalOverlay").addEventListener("click", closeModal);
+  document.getElementById("fieldTitle").addEventListener("input", validateModal);
+  document.getElementById("deleteCancelBtn").addEventListener("click", closeDelete);
+  document.getElementById("deleteConfirmBtn").addEventListener("click", confirmDelete);
+  document.getElementById("deleteOverlay").addEventListener("click", closeDelete);
+  document.getElementById("search").addEventListener("input", (e) => {
+    query = e.target.value;
+    render();
+  });
+  document.querySelectorAll(".freq-option").forEach((el) => {
+    el.addEventListener("click", () => setModalFreq(el.dataset.freq));
+  });
+
+  loadItems();
+</script>
+</body>
+</html>
