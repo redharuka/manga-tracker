@@ -1,0 +1,32 @@
+name: GitHub Pages デプロイ（漫画蔵 テスト用）
+
+on:
+  push:
+    branches: ["claude/trusting-goodall-4il706"]
+    paths: ["manga-bookmark/**"]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: manga-bookmark/ を配信対象としてアップロード
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: manga-bookmark
+      - name: GitHub Pagesにデプロイ
+        id: deployment
+        uses: actions/deploy-pages@v4
