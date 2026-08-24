@@ -100,7 +100,13 @@
 
   .card-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; margin-bottom: 10px; }
   .updated { font-size: 11px; color: #55555a; font-family: 'JetBrains Mono', monospace; }
-  .open-link { font-size: 12px; color: #c23b22; text-decoration: none; }
+  .open-link {
+    font-size: 13px; color: #c23b22; text-decoration: none; font-weight: 700;
+    padding: 8px 10px; margin: -8px -10px -8px 0; border-radius: 7px;
+    display: inline-flex; align-items: center; min-height: 20px;
+  }
+  .open-link:hover { background: #c23b2222; }
+  .open-link:active { transform: scale(0.97); }
 
   .read-btn {
     width: 100%; background: #2c5b3d; border: none; color: #eaf5ee; border-radius: 7px;
