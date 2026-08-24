@@ -123,6 +123,7 @@
   }
   .overlay.show { display: flex; }
   .modal-box { background: #1c1c1f; border: 1px solid #2c2c30; border-radius: 12px; padding: 20px; width: 100%; max-width: 380px; }
+  .modal-box.wide { max-width: 520px; }
   .modal-title { font-family: 'Shippori Mincho', serif; font-size: 18px; font-weight: 700; margin-bottom: 14px; }
   label.field-label { font-size: 12px; color: #8a8a8d; display: block; margin-bottom: 5px; margin-top: 12px; }
   .field-input {
@@ -147,6 +148,26 @@
   .confirm-box { background: #1c1c1f; border: 1px solid #2c2c30; border-radius: 12px; padding: 20px; width: 100%; max-width: 300px; }
 
   footer.note-footer { text-align: center; font-size: 11px; color: #4a4a4d; margin-top: 30px; }
+
+  .icon-btn {
+    background: none; border: 1px solid #2c2c30; color: #8a8a8d; border-radius: 8px;
+    padding: 9px 12px; font-size: 13px; cursor: pointer; white-space: nowrap;
+  }
+  .icon-btn:hover { border-color: #43434a; color: #eae6da; }
+  .icon-btn:active { transform: scale(0.97); }
+
+  .reset-info { font-size: 11px; color: #6f6f75; margin-bottom: 8px; }
+
+  .io-textarea {
+    width: 100%; min-height: 160px; background: #121214; border: 1px solid #2c2c30; border-radius: 7px;
+    padding: 10px; color: #eae6da; font-size: 12px; font-family: 'JetBrains Mono', monospace;
+    resize: vertical;
+  }
+  .io-textarea:focus { outline: 2px solid #c23b22aa; outline-offset: 1px; }
+  .io-hint { font-size: 12px; color: #8a8a8d; margin-top: 10px; line-height: 1.5; }
+  .io-status { font-size: 12px; margin-top: 8px; min-height: 16px; }
+  .io-status.ok { color: #7fd98f; }
+  .io-status.err { color: #ff9d8a; }
 </style>
 </head>
 <body>
@@ -162,6 +183,8 @@
 
   <div class="toolbar">
     <input id="search" placeholder="タイトル・メモで検索" />
+    <button class="icon-btn" id="openExportBtn" title="バックアップ用にデータをコピー">📤 退避</button>
+    <button class="icon-btn" id="openImportBtn" title="バックアップから復元">📥 復元</button>
     <button class="add-btn" id="openAddBtn">＋ 追加</button>
   </div>
 
@@ -197,6 +220,35 @@
       <div class="modal-actions">
         <button class="cancel-btn" id="modalCancelBtn">やめる</button>
         <button class="save-btn" id="modalSaveBtn">積む</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 退避（エクスポート）モーダル -->
+  <div class="overlay" id="exportOverlay">
+    <div class="modal-box wide" onclick="event.stopPropagation()">
+      <div class="modal-title">📤 データを退避</div>
+      <textarea class="io-textarea" id="exportTextarea" readonly></textarea>
+      <div class="io-hint">「コピー」を押すか、テキストを選択して手動でコピー（Ctrl+C）してください。他の端末・ブラウザの「📥 復元」に貼り付けると移行できます。</div>
+      <div class="io-status" id="exportStatus"></div>
+      <div class="modal-actions">
+        <button class="cancel-btn" id="exportCloseBtn">閉じる</button>
+        <button class="save-btn" id="exportCopyBtn">コピー</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 復元（インポート）モーダル -->
+  <div class="overlay" id="importOverlay">
+    <div class="modal-box wide" onclick="event.stopPropagation()">
+      <div class="modal-title">📥 データを復元</div>
+      <textarea class="io-textarea" id="importTextarea" placeholder="退避したデータをここに貼り付け（Ctrl+V）"></textarea>
+      <div class="io-hint">⚠ 復元すると現在のデータは上書きされます。先に「📤 退避」で今のデータをコピーしておくと安全です。</div>
+      <div class="io-status" id="importStatus"></div>
+      <div class="modal-actions">
+        <button class="cancel-btn" id="importCloseBtn">やめる</button>
+        <button class="save-btn" id="importPasteBtn">貼り付け</button>
+        <button class="delete-btn" id="importApplyBtn">この内容で復元する</button>
       </div>
     </div>
   </div>
@@ -246,6 +298,33 @@
 
   let loadFailed = false;
 
+  const WEEKLY_RESET_MS = 7 * 24 * 60 * 60 * 1000;
+  const MONTHLY_RESET_MS = 30 * 24 * 60 * 60 * 1000;
+
+  function resetThresholdMs(freq) {
+    return freq === "monthly" ? MONTHLY_RESET_MS : WEEKLY_RESET_MS;
+  }
+
+  // 週刊=7日／月刊=30日を過ぎたものを自動で未読に戻す
+  function applyAutoReset() {
+    const now = Date.now();
+    let changed = false;
+    items = items.map((it) => {
+      if (it.lastReadAt != null && now - it.lastReadAt >= resetThresholdMs(it.frequency)) {
+        changed = true;
+        return { ...it, lastReadAt: null };
+      }
+      return it;
+    });
+    return changed;
+  }
+
+  function resetCountdownText(it) {
+    const remainMs = resetThresholdMs(it.frequency) - (Date.now() - it.lastReadAt);
+    const remainDays = Math.max(0, Math.ceil(remainMs / (24 * 60 * 60 * 1000)));
+    return remainDays === 0 ? "まもなく未読に戻ります" : `あと${remainDays}日で未読に戻る`;
+  }
+
   function loadItems() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -260,6 +339,9 @@
           ⚠ 保存データの読み込みに失敗しました。誤って上書きしないよう、保存を一時停止しています。<br>
           このブラウザのプライベートモードで開いていないか、ストレージ容量制限に達していないか確認してください。
         </div>`;
+    }
+    if (!loadFailed && applyAutoReset()) {
+      persist();
     }
     render();
   }
@@ -445,6 +527,7 @@
             <span class="updated">${footerText}</span>
             ${it.url ? `<a class="open-link" href="${escapeHtml(it.url)}" target="_blank" rel="noreferrer">開く ↗</a>` : ""}
           </div>
+          ${!isUnread ? `<div class="reset-info">${resetCountdownText(it)}</div>` : ""}
           ${isUnread
             ? `<button class="read-btn" onclick="markRead('${it.id}')">✓ 読んだ（下に移動）</button>`
             : `<button class="undo-btn" onclick="undoRead('${it.id}')">↺ 未読に戻す</button>`
@@ -453,6 +536,104 @@
         </div>
       `;
     }).join("");
+  }
+
+  // --- 📤 退避（エクスポート） / 📥 復元（インポート） ---
+  // clipboard APIはhttps等のセキュアコンテキストでのみ動作するため、
+  // 常にテキストエリアへの表示・貼り付けを主経路とし、clipboard APIは補助的に使う。
+
+  function openExport() {
+    document.getElementById("exportTextarea").value = JSON.stringify(items, null, 2);
+    const status = document.getElementById("exportStatus");
+    status.textContent = "";
+    status.className = "io-status";
+    document.getElementById("exportOverlay").classList.add("show");
+  }
+
+  function closeExport() {
+    document.getElementById("exportOverlay").classList.remove("show");
+  }
+
+  async function copyExport() {
+    const textarea = document.getElementById("exportTextarea");
+    const status = document.getElementById("exportStatus");
+    textarea.focus();
+    textarea.select();
+    let ok = false;
+    try {
+      if (window.isSecureContext && navigator.clipboard) {
+        await navigator.clipboard.writeText(textarea.value);
+        ok = true;
+      }
+    } catch (e) { ok = false; }
+    if (!ok) {
+      try {
+        ok = document.execCommand("copy");
+      } catch (e) { ok = false; }
+    }
+    status.textContent = ok
+      ? "✓ コピーしました"
+      : "自動コピーできませんでした。選択された状態なので手動でコピー（Ctrl+C）してください";
+    status.className = "io-status " + (ok ? "ok" : "err");
+  }
+
+  function openImport() {
+    document.getElementById("importTextarea").value = "";
+    const status = document.getElementById("importStatus");
+    status.textContent = "";
+    status.className = "io-status";
+    document.getElementById("importOverlay").classList.add("show");
+  }
+
+  function closeImport() {
+    document.getElementById("importOverlay").classList.remove("show");
+  }
+
+  async function pasteImport() {
+    const status = document.getElementById("importStatus");
+    try {
+      if (window.isSecureContext && navigator.clipboard) {
+        const text = await navigator.clipboard.readText();
+        document.getElementById("importTextarea").value = text;
+        status.textContent = "";
+        status.className = "io-status";
+        return;
+      }
+    } catch (e) { /* フォールスルーして手動貼り付けを案内 */ }
+    status.textContent = "自動貼り付けできません。テキストエリアに手動で貼り付けてください（Ctrl+V）";
+    status.className = "io-status err";
+    document.getElementById("importTextarea").focus();
+  }
+
+  function applyImport() {
+    const status = document.getElementById("importStatus");
+    const raw = document.getElementById("importTextarea").value.trim();
+    if (!raw) {
+      status.textContent = "データが空です";
+      status.className = "io-status err";
+      return;
+    }
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (e) {
+      status.textContent = "JSONとして読み込めませんでした: " + e.message;
+      status.className = "io-status err";
+      return;
+    }
+    if (!Array.isArray(parsed) || !parsed.every((it) => it && typeof it.title === "string" && typeof it.id === "string")) {
+      status.textContent = "データの形式が正しくありません（漫画蔵の退避データではない可能性があります）";
+      status.className = "io-status err";
+      return;
+    }
+    if (!confirm(`現在のデータ（${items.length}件）を、貼り付けたデータ（${parsed.length}件）で上書きします。よろしいですか？`)) {
+      return;
+    }
+    items = parsed.map((it) => ({ frequency: "weekly", favorite: false, lastReadAt: null, ...it }));
+    applyAutoReset();
+    persist();
+    closeImport();
+    render();
   }
 
   document.getElementById("openAddBtn").addEventListener("click", openAdd);
@@ -471,7 +652,33 @@
     el.addEventListener("click", () => setModalFreq(el.dataset.freq));
   });
 
+  document.getElementById("openExportBtn").addEventListener("click", openExport);
+  document.getElementById("exportCloseBtn").addEventListener("click", closeExport);
+  document.getElementById("exportOverlay").addEventListener("click", closeExport);
+  document.getElementById("exportCopyBtn").addEventListener("click", copyExport);
+
+  document.getElementById("openImportBtn").addEventListener("click", openImport);
+  document.getElementById("importCloseBtn").addEventListener("click", closeImport);
+  document.getElementById("importOverlay").addEventListener("click", closeImport);
+  document.getElementById("importPasteBtn").addEventListener("click", pasteImport);
+  document.getElementById("importApplyBtn").addEventListener("click", applyImport);
+
   loadItems();
+
+  // 開きっぱなしのタブでも反映されるよう、定期的・復帰時にも自動リセットを再チェック
+  setInterval(() => {
+    if (!loadFailed && applyAutoReset()) {
+      persist();
+      render();
+    }
+  }, 5 * 60 * 1000);
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && !loadFailed && applyAutoReset()) {
+      persist();
+      render();
+    }
+  });
 </script>
 </body>
 </html>
