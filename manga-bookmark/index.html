@@ -171,6 +171,16 @@
     resize: vertical;
   }
   .io-textarea:focus { outline: 2px solid #c23b22aa; outline-offset: 1px; }
+  .mode-select { display: flex; gap: 8px; margin-top: 10px; }
+  .mode-option {
+    flex: 1; border: 1px solid #2c2c30; border-radius: 8px; padding: 9px 10px;
+    font-size: 12.5px; color: #8a8a8d; cursor: pointer; display: block;
+  }
+  .mode-option.selected { border-color: #c23b22; color: #f2ede1; background: #c23b2222; }
+  .mode-option input { margin-right: 5px; }
+  .mode-option .mode-sub { display: block; font-size: 11px; color: #6f6f75; margin: 3px 0 0 18px; }
+  .mode-option.selected .mode-sub { color: #d9b8ae; }
+
   .io-hint { font-size: 12px; color: #8a8a8d; margin-top: 10px; line-height: 1.5; }
   .io-status { font-size: 12px; margin-top: 8px; min-height: 16px; }
   .io-status.ok { color: #7fd98f; }
@@ -250,7 +260,19 @@
     <div class="modal-box wide" onclick="event.stopPropagation()">
       <div class="modal-title">📥 データを復元</div>
       <textarea class="io-textarea" id="importTextarea" placeholder="退避したデータをここに貼り付け（Ctrl+V）"></textarea>
-      <div class="io-hint">⚠ 復元すると現在のデータは上書きされます。先に「📤 退避」で今のデータをコピーしておくと安全です。</div>
+
+      <div class="mode-select" id="importModeSelect">
+        <label class="mode-option selected" data-mode="replace">
+          <input type="radio" name="importMode" value="replace" checked />
+          置き換え<span class="mode-sub">今のデータは消えて、貼り付けた内容だけになる</span>
+        </label>
+        <label class="mode-option" data-mode="merge">
+          <input type="radio" name="importMode" value="merge" />
+          追加（マージ）<span class="mode-sub">今のデータに追加。同じタイトルはスキップ</span>
+        </label>
+      </div>
+
+      <div class="io-hint" id="importHint">⚠ 復元すると現在のデータは上書きされます。先に「📤 退避」で今のデータをコピーしておくと安全です。</div>
       <div class="io-status" id="importStatus"></div>
       <div class="modal-actions">
         <button class="cancel-btn" id="importCloseBtn">やめる</button>
@@ -584,11 +606,31 @@
     status.className = "io-status " + (ok ? "ok" : "err");
   }
 
+  function normalizeTitle(t) {
+    return (t || "").trim().toLowerCase();
+  }
+
+  function setImportMode(mode) {
+    document.querySelectorAll('#importModeSelect .mode-option').forEach((el) => {
+      el.classList.toggle("selected", el.dataset.mode === mode);
+      el.querySelector("input").checked = el.dataset.mode === mode;
+    });
+    const hint = document.getElementById("importHint");
+    hint.textContent = mode === "merge"
+      ? "今のデータに追加します。同じタイトルのものはスキップされます。"
+      : "⚠ 復元すると現在のデータは上書きされます。先に「📤 退避」で今のデータをコピーしておくと安全です。";
+  }
+
+  function getImportMode() {
+    return document.querySelector('input[name="importMode"]:checked')?.value || "replace";
+  }
+
   function openImport() {
     document.getElementById("importTextarea").value = "";
     const status = document.getElementById("importStatus");
     status.textContent = "";
     status.className = "io-status";
+    setImportMode("replace");
     document.getElementById("importOverlay").classList.add("show");
   }
 
@@ -633,10 +675,41 @@
       status.className = "io-status err";
       return;
     }
-    if (!confirm(`現在のデータ（${items.length}件）を、貼り付けたデータ（${parsed.length}件）で上書きします。よろしいですか？`)) {
-      return;
+    const mode = getImportMode();
+
+    if (mode === "replace") {
+      if (!confirm(`現在のデータ（${items.length}件）を、貼り付けたデータ（${parsed.length}件）で上書きします。よろしいですか？`)) {
+        return;
+      }
+      items = parsed.map((it) => ({ frequency: "weekly", favorite: false, lastReadAt: null, ...it }));
+    } else {
+      const existingTitles = new Set(items.map((it) => normalizeTitle(it.title)));
+      const existingIds = new Set(items.map((it) => it.id));
+      const toAdd = [];
+      let skipped = 0;
+      parsed.forEach((it) => {
+        const norm = normalizeTitle(it.title);
+        if (existingTitles.has(norm)) {
+          skipped++;
+          return;
+        }
+        existingTitles.add(norm);
+        let id = it.id;
+        if (!id || existingIds.has(id)) id = uid();
+        existingIds.add(id);
+        toAdd.push({ frequency: "weekly", favorite: false, lastReadAt: null, ...it, id });
+      });
+      if (toAdd.length === 0) {
+        status.textContent = `追加できるデータがありません（${skipped}件は既存のタイトルと重複のためスキップ）`;
+        status.className = "io-status err";
+        return;
+      }
+      if (!confirm(`現在のデータ（${items.length}件）に ${toAdd.length}件 を追加します（重複タイトル ${skipped}件 はスキップ）。よろしいですか？`)) {
+        return;
+      }
+      items = [...toAdd, ...items];
     }
-    items = parsed.map((it) => ({ frequency: "weekly", favorite: false, lastReadAt: null, ...it }));
+
     applyAutoReset();
     persist();
     closeImport();
@@ -669,6 +742,9 @@
   document.getElementById("importOverlay").addEventListener("click", closeImport);
   document.getElementById("importPasteBtn").addEventListener("click", pasteImport);
   document.getElementById("importApplyBtn").addEventListener("click", applyImport);
+  document.querySelectorAll('#importModeSelect .mode-option').forEach((el) => {
+    el.addEventListener("click", () => setImportMode(el.dataset.mode));
+  });
 
   loadItems();
 
